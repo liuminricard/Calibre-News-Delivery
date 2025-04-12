@@ -7,7 +7,7 @@ class ChinaDigitalTimes(BasicNewsRecipe):
     description = '中国数字时代是一个关注中国互联网审查、言论自由和社会运动的独立媒体'
     language = 'zh'
     __author__ = 'Calibre User'
-    oldest_article = 7  # 最多抓取7天内的文章
+    oldest_article = 2  # 最多抓取7天内的文章
     max_articles_per_feed = 50  # 每栏目最多抓取50篇文章
     no_stylesheets = True
     remove_javascript = True
