@@ -1,0 +1,120 @@
+from calibre.web.feeds.news import BasicNewsRecipe
+from calibre.utils.date import parse_date
+from datetime import datetime, timedelta
+
+class McSweeneys(BasicNewsRecipe):
+    title = 'McSweeney\'s Internet Tendency'
+    description = 'Daily humor, satire, and fiction pieces'
+    language = 'en'
+    __author__ = 'McSweeney\'s'
+    oldest_article = 7  # days (archive is valuable)
+    max_articles_per_feed = 50
+    no_stylesheets = True
+    remove_javascript = True
+    use_embedded_content = True
+    encoding = 'utf-8'
+    auto_cleanup = True
+    timeout = 20
+    timefmt = '[%Y-%m-%d]'
+    delay = 1  # seconds between downloads to be polite
+    
+    feeds = [
+        ('Latest Articles', 'https://www.mcsweeneys.net/feed')
+    ]
+    
+    keep_only_tags = [
+        dict(name='article'),
+        dict(name='div', attrs={'class': 'entry-content'}),
+    ]
+    
+    remove_tags = [
+        dict(name='div', attrs={'class': 'sharedaddy'}),
+        dict(name='div', attrs={'class': 'jp-relatedposts'}),
+        dict(name='div', attrs={'class': 'comments-area'}),
+        dict(name='div', attrs={'class': 'post-meta'}),
+        dict(name='nav', attrs={'class': 'post-navigation'}),
+        dict(name='section', attrs={'class': 'author-bio'}),
+        dict(name='div', attrs={'class': 'newsletter-signup'}),
+        dict(name='script'),
+        dict(name='style'),
+        dict(name='iframe'),
+        dict(name='form'),
+    ]
+    
+    extra_css = '''
+        h1.entry-title { 
+            font-size: 1.8em; 
+            margin-bottom: 0.3em;
+            font-family: Georgia, serif;
+        }
+        .entry-content { 
+            font-family: Georgia, serif;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        .entry-content p { 
+            margin: 1em 0;
+            text-align: left;
+        }
+        .entry-content ul, .entry-content ol {
+            margin: 1em 0;
+            padding-left: 1.5em;
+        }
+        .entry-content li {
+            margin: 0.5em 0;
+        }
+        .entry-content h2 {
+            font-size: 1.4em;
+            margin: 1.5em 0 0.8em 0;
+            border-bottom: 1px solid #ddd;
+        }
+        .byline {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 1.5em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 0.5em;
+        }
+        .article-divider {
+            height: 1px;
+            background: #ddd;
+            margin: 2em 0;
+        }
+    '''
+    
+    def preprocess_html(self, soup):
+        # Add byline if available
+        entry_meta = soup.find('div', class_='entry-meta')
+        if entry_meta:
+            byline = soup.new_tag('div', attrs={'class': 'byline'})
+            byline.string = 'By ' + self.tag_to_string(entry_meta)
+            entry_content = soup.find('div', class_='entry-content')
+            if entry_content:
+                entry_content.insert(0, byline)
+        
+        # Add divider between articles
+        divider = soup.new_tag('div', attrs={'class': 'article-divider'})
+        soup.append(divider)
+        
+        # Clean up lists (common in McSweeney's list-based humor)
+        for ul in soup.find_all('ul'):
+            if not ul.find_parent('ul') and not ul.find_parent('ol'):
+                ul['style'] = 'list-style-type: disc;'
+        
+        for ol in soup.find_all('ol'):
+            if not ol.find_parent('ul') and not ol.find_parent('ol'):
+                ol['style'] = 'list-style-type: decimal;'
+        
+        return soup
+    
+    def parse_feeds(self):
+        feeds = BasicNewsRecipe.parse_feeds(self)
+        for feed in feeds:
+            for article in feed.articles:
+                # Clean up titles that start with "McSweeney's"
+                if article.title.startswith('McSweeney\'s'):
+                    article.title = article.title.replace('McSweeney\'s', '').strip(': ')
+                # McSweeney's dates are usually clean but just in case
+                if article.date:
+                    article.date = parse_date(article.date)
+        return feeds

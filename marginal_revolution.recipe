@@ -1,0 +1,51 @@
+from calibre.web.feeds.news import BasicNewsRecipe
+
+class MarginalRevolution(BasicNewsRecipe):
+    title = 'Marginal Revolution'
+    description = 'A blog on economics by Tyler Cowen and Alex Tabarrok'
+    language = 'en'
+    __author__ = 'Tyler Cowen and Alex Tabarrok'
+    oldest_article = 2  # days
+    max_articles_per_feed = 50
+    no_stylesheets = True
+    remove_javascript = True
+    use_embedded_content = False
+    encoding = 'utf-8'
+    
+    keep_only_tags = [
+        dict(name='div', attrs={'class': 'post'})
+    ]
+    
+    remove_tags = [
+        dict(name='div', attrs={'class': 'sharedaddy'}),
+        dict(name='div', attrs={'class': 'postmetadata'}),
+        dict(name='div', attrs={'class': 'post-footer'}),
+        dict(name='div', attrs={'class': 'comments'}),
+        dict(name='div', attrs={'id': 'jp-relatedposts'}),
+        dict(name='div', attrs={'class': 'entry-meta'}),
+        dict(name='span', attrs={'class': 'entry-categories'}),
+        dict(name='span', attrs={'class': 'entry-tags'}),
+        dict(name='div', attrs={'class': 'nav-links'}),
+        dict(name='div', attrs={'class': 'comments-area'}),
+    ]
+    
+    feeds = [
+        ('Marginal Revolution', 'https://marginalrevolution.com/feed')
+    ]
+    
+    def preprocess_html(self, soup):
+        # Remove share buttons and other unnecessary elements
+        for share in soup.find_all('div', class_='sharedaddy'):
+            share.decompose()
+        for footer in soup.find_all('div', class_='post-footer'):
+            footer.decompose()
+        return soup
+    
+    def parse_feeds(self):
+        feeds = BasicNewsRecipe.parse_feeds(self)
+        for feed in feeds:
+            for article in feed.articles:
+                # Clean up titles that start with "Marginal Revolution"
+                if article.title.startswith('Marginal Revolution'):
+                    article.title = article.title.replace('Marginal Revolution', '').strip(' :')
+        return feeds
