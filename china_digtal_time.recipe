@@ -1,0 +1,63 @@
+import re
+from calibre.web.feeds.news import BasicNewsRecipe
+from calibre.ebooks.BeautifulSoup import BeautifulSoup
+
+class ChinaDigitalTimes(BasicNewsRecipe):
+    title = '中国数字时代'
+    description = '中国数字时代是一个关注中国互联网审查、言论自由和社会运动的独立媒体'
+    language = 'zh'
+    __author__ = 'Calibre User'
+    oldest_article = 7  # 最多抓取7天内的文章
+    max_articles_per_feed = 50  # 每栏目最多抓取50篇文章
+    no_stylesheets = True
+    remove_javascript = True
+    auto_cleanup = True
+    use_embedded_content = False
+    encoding = 'utf-8'
+    
+    keep_only_tags = [
+        dict(name='div', attrs={'class': 'post-content'})
+    ]
+    
+    remove_tags = [
+        dict(name='div', attrs={'class': 'post-actions'}),
+        dict(name='div', attrs={'class': 'sharedaddy'}),
+        dict(name='div', attrs={'class': 'post-meta'}),
+        dict(name='span', attrs={'class': 'middot'}),
+        dict(name='a', attrs={'rel': 'nofollow'}),
+    ]
+    
+    feeds = [
+        ('首页', 'https://chinadigitaltimes.net/chinese/feed/'),
+        ('热门文章', 'https://chinadigitaltimes.net/chinese/feed/?feed=hot-articles'),
+        ('翻墙快讯', 'https://chinadigitaltimes.net/chinese/feed/?cat=53222'),
+        ('敏感词库', 'https://chinadigitaltimes.net/chinese/feed/?cat=19051'),
+        ('404文库', 'https://chinadigitaltimes.net/chinese/feed/?cat=1226'),
+    ]
+    
+    def preprocess_html(self, soup):
+        # 移除所有图片以避免追踪
+        for img in soup.findAll('img'):
+            img.decompose()
+            
+        # 清理社交媒体嵌入内容
+        for embed in soup.findAll('iframe'):
+            embed.decompose()
+            
+        # 将标题转换为h2
+        for h1 in soup.findAll('h1'):
+            h1.name = 'h2'
+            
+        return soup
+    
+    def parse_feeds(self):
+        feeds = super().parse_feeds()
+        
+        # 合并所有feed避免重复
+        combined_feed = feeds[0]
+        for feed in feeds[1:]:
+            for article in feed:
+                if not any(a.title == article.title for a in combined_feed):
+                    combined_feed.append(article)
+                    
+        return [combined_feed]
