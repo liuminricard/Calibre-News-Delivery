@@ -1,0 +1,170 @@
+from calibre.web.feeds.news import BasicNewsRecipe
+from calibre.utils.date import parse_date
+from datetime import datetime, timedelta
+
+class Axios(BasicNewsRecipe):
+    title = 'Axios'
+    description = 'Smart, efficient news worthy of your time'
+    language = 'en'
+    __author__ = 'Axios'
+    oldest_article = 1  # days
+    max_articles_per_feed = 100
+    no_stylesheets = True
+    remove_javascript = True
+    use_embedded_content = True
+    encoding = 'utf-8'
+    auto_cleanup = True
+    timeout = 30
+    timefmt = '[%Y-%m-%d]'
+    delay = 1
+    
+    feeds = [
+        ('Top Stories', 'https://www.axios.com/feed.xml'),
+        ('Politics', 'https://www.axios.com/politics/feed.xml'),
+        ('Business', 'https://www.axios.com/business/feed.xml'),
+        ('Technology', 'https://www.axios.com/technology/feed.xml'),
+        ('Markets', 'https://www.axios.com/markets/feed.xml'),
+        ('World', 'https://www.axios.com/world/feed.xml'),
+        ('Science', 'https://www.axios.com/science/feed.xml')
+    ]
+    
+    keep_only_tags = [
+        dict(name='article'),
+        dict(name='div', attrs={'class': 'main-content'}),
+    ]
+    
+    remove_tags = [
+        dict(name='div', attrs={'class': 'share-tools'}),
+        dict(name='div', attrs={'class': 'newsletter-signup'}),
+        dict(name='div', attrs={'class': 'author-bio'}),
+        dict(name='div', attrs={'class': 'related-stories'}),
+        dict(name='div', attrs={'class': 'comments'}),
+        dict(name='div', attrs={'class': 'ad-container'}),
+        dict(name='aside'),
+        dict(name='script'),
+        dict(name='style'),
+        dict(name='iframe'),
+        dict(name='form'),
+    ]
+    
+    extra_css = '''
+        h1.article__title { 
+            font-size: 1.8em; 
+            margin-bottom: 0.4em;
+            font-weight: bold;
+            line-height: 1.3;
+        }
+        .article__byline {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 1.5em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 1em;
+        }
+        .main-content {
+            font-family: Georgia, serif;
+            font-size: 1.1em;
+            line-height: 1.7;
+        }
+        .main-content p {
+            margin: 1.2em 0;
+        }
+        .main-content img {
+            max-width: 100%;
+            height: auto;
+            margin: 1em auto;
+            display: block;
+        }
+        .main-content .pull-quote {
+            font-size: 1.3em;
+            line-height: 1.5;
+            color: #333;
+            margin: 1.5em 0;
+            padding: 0.5em 1em;
+            border-left: 3px solid #00a4bd;
+            background-color: #f7f7f7;
+        }
+        .main-content h2 {
+            font-size: 1.4em;
+            margin: 1.8em 0 1em 0;
+            font-weight: bold;
+            color: #222;
+        }
+        .main-content ul, .main-content ol {
+            margin: 1.5em 0;
+            padding-left: 2em;
+        }
+        .main-content li {
+            margin: 0.8em 0;
+        }
+        .main-content .chart-container {
+            margin: 1.5em 0;
+            text-align: center;
+        }
+        .main-content .chart-container img {
+            max-width: 100%;
+        }
+        .article-divider {
+            height: 1px;
+            background: #eee;
+            margin: 3em 0;
+        }
+        .axios-bullet {
+            color: #00a4bd;
+            font-weight: bold;
+            margin-right: 0.3em;
+        }
+    '''
+    
+    def preprocess_html(self, soup):
+        # Handle Axios' signature bullet points
+        for p in soup.find_all('p'):
+            if p.text.startswith('• '):
+                p.string = p.text.replace('• ', '')
+                span = soup.new_tag('span', attrs={'class': 'axios-bullet'})
+                span.string = '•'
+                p.insert(0, span)
+        
+        # Handle pull quotes
+        for blockquote in soup.find_all('blockquote'):
+            blockquote['class'] = 'pull-quote'
+        
+        # Handle charts and data visualizations
+        for chart in soup.find_all('div', class_='chart-container'):
+            img = chart.find('img')
+            if img:
+                img['style'] = 'max-width: 100%; height: auto;'
+        
+        # Add divider between articles
+        divider = soup.new_tag('div', attrs={'class': 'article-divider'})
+        soup.append(divider)
+        
+        return soup
+    
+    def parse_feeds(self):
+        feeds = BasicNewsRecipe.parse_feeds(self)
+        for feed in feeds:
+            for article in feed.articles:
+                # Clean up dates
+                if article.date:
+                    article.date = parse_date(article.date)
+                
+                # Add section prefix to titles
+                section = None
+                if '/politics/' in article.url:
+                    section = 'Politics'
+                elif '/business/' in article.url:
+                    section = 'Business'
+                elif '/technology/' in article.url:
+                    section = 'Tech'
+                elif '/markets/' in article.url:
+                    section = 'Markets'
+                elif '/world/' in article.url:
+                    section = 'World'
+                elif '/science/' in article.url:
+                    section = 'Science'
+                
+                if section:
+                    article.title = f"{section}: {article.title}"
+                
+        return feeds
