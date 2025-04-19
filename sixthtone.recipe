@@ -1,13 +1,17 @@
 from calibre.web.feeds.news import BasicNewsRecipe
 from calibre.utils.date import parse_date
+from calibre.ebooks.BeautifulSoup import BeautifulSoup
+import re
 
-class SixthTone(BasicNewsRecipe):
-    title = 'Sixth Tone'
-    description = 'Fresh voices from today\'s China'
+class SixthToneEnhanced(BasicNewsRecipe):
+    title = 'Sixth Tone (Enhanced)'
+    description = 'Fresh voices from today\'s China with daily updates, image compression, and vocabulary help'
     language = 'en'
     __author__ = 'Sixth Tone'
-    oldest_article = 2  # days
-    max_articles_per_feed = 50
+    oldest_article = 1  # Only fetch from past day for daily delivery
+    max_articles_per_feed = 30
+    compress_news_images = True  # Enable image compression
+    compress_news_images_auto_size = 10  # Size in KB above which to compress
     no_stylesheets = True
     remove_javascript = True
     use_embedded_content = True
@@ -18,11 +22,9 @@ class SixthTone(BasicNewsRecipe):
     delay = 2
     
     feeds = [
-        ('Latest', 'https://www.sixthtone.com/rss'),
+        ('Daily Digest', 'https://www.sixthtone.com/rss'),
         ('News', 'https://www.sixthtone.com/rss/news'),
-        ('Features', 'https://www.sixthtone.com/rss/features'),
-        ('Opinion', 'https://www.sixthtone.com/rss/opinion'),
-        ('Culture', 'https://www.sixthtone.com/rss/culture')
+        ('Features', 'https://www.sixthtone.com/rss/features')
     ]
     
     keep_only_tags = [
@@ -101,7 +103,30 @@ class SixthTone(BasicNewsRecipe):
             background: #eee;
             margin: 3em 0;
         }
+        .vocab-hint {
+            color: #0066cc;
+            border-bottom: 1px dotted #0066cc;
+            cursor: help;
+        }
+        .vocab-hint::after {
+            content: ' [?]';
+            font-size: 0.8em;
+        }
     '''
+    
+    # Vocabulary dictionary (Chinese terms with English explanations)
+    VOCAB_DICT = {
+        'guanxi': 'Chinese concept of interpersonal relationships and networks',
+        'hukou': 'household registration system in China',
+        'weiqi': 'Chinese board game also known as Go',
+        'diba': 'online nationalist movement in China',
+        'fenqing': 'angry youth - nationalist young Chinese netizens',
+        'tie dan': 'iron rice bowl - secure government job',
+        'chengyu': 'four-character Chinese idioms',
+        'baijiu': 'Chinese liquor',
+        'gaokao': 'national college entrance examination',
+        'hongbao': 'red envelope containing money as gift'
+    }
     
     def preprocess_html(self, soup):
         # Reorganize article header
@@ -119,6 +144,17 @@ class SixthTone(BasicNewsRecipe):
                     article_content.insert(1, subtitle)
                 if meta:
                     article_content.insert(2, meta)
+        
+        # Add vocabulary hints
+        for term, definition in self.VOCAB_DICT.items():
+            pattern = re.compile(term, re.IGNORECASE)
+            for text in soup.find_all(text=pattern):
+                if text.parent.name not in ['a', 'span']:
+                    new_tag = soup.new_tag('span', 
+                                         attrs={'class': 'vocab-hint', 
+                                                'title': definition})
+                    new_tag.string = text
+                    text.replace_with(new_tag)
         
         # Handle Chinese names in bylines
         for meta in soup.find_all('div', class_='article-meta'):
@@ -145,9 +181,13 @@ class SixthTone(BasicNewsRecipe):
                     article.title = f"News: {article.title}"
                 elif '/features/' in article.url:
                     article.title = f"Feature: {article.title}"
-                elif '/opinion/' in article.url:
-                    article.title = f"Opinion: {article.title}"
-                elif '/culture/' in article.url:
-                    article.title = f"Culture: {article.title}"
                 
         return feeds
+    
+    def postprocess_html(self, soup, first_fetch):
+        # Optimize images after compression
+        for img in soup.find_all('img'):
+            if 'src' in img.attrs:
+                img['src'] = self.rewrite_url(img['src'])
+                img['loading'] = 'lazy'
+        return soup
